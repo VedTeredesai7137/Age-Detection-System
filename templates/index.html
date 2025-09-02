@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Age Detection - SSR-NET</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy: #0a0d1a;
+      --charcoal: #151b2e;
+      --glass: rgba(255,255,255,0.05);
+      --teal: #00d4aa;
+      --white: #fff;
+      --border-glass: rgba(0,212,170,0.25);
+      --shadow-card: 0 8px 32px 0 rgba(0,0,0,0.25), 0 1.5px 8px 0 #00d4aa33;
+      --shadow-btn: 0 2px 16px 0 #00d4aa55;
+      --shadow-btn-hover: 0 4px 32px 0 #00d4aa99;
+      --radius-card: 24px;
+      --radius-btn: 50px;
+      --blur: 20px;
+      --transition: cubic-bezier(0.4, 0, 0.2, 1) 320ms;
+      --status-glow: 0 0 12px 2px #00d4aa, 0 0 32px 4px #00d4aa44;
+      --error: #ff3b6a;
+      --success: #00ffb3;
+      --gray: #b6c2e2;
+    }
+    html, body {
+      height: 100%;
+    }
+    body {
+      min-height: 100vh;
+      background: var(--navy);
+      font-family: 'Inter', Arial, sans-serif;
+      color: var(--white);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 0;
+      margin: 0;
+      overflow-x: hidden;
+    }
+    .headline {
+      width: 100vw;
+      text-align: center;
+      margin-top: 2.5rem;
+      margin-bottom: 2.5rem;
+      padding: 0 1rem;
+    }
+    .headline h1 {
+      font-family: 'Orbitron', Arial, sans-serif;
+      font-size: clamp(3rem, 8vw, 4.5rem);
+      font-weight: 700;
+      color: var(--teal);
+      letter-spacing: 2px;
+      margin: 0;
+      text-shadow: 0 2px 24px #00d4aa55, 0 1px 0 #151b2e;
+      line-height: 1.1;
+    }
+    /* Animated background: floating particles */
+    .particles {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0.7;
+      background: var(--teal);
+      animation: float 12s linear infinite;
+    }
+    @keyframes float {
+      0% { transform: translateY(0) scale(1); opacity: 0.7; }
+      50% { opacity: 1; }
+      100% { transform: translateY(-100vh) scale(1.2); opacity: 0.2; }
+    }
+    /* Scan lines overlay */
+    .scanlines {
+      pointer-events: none;
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      z-index: 1;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px, transparent 6px,
+        rgba(255,255,255,0.03) 7px, transparent 8px
+      );
+      mix-blend-mode: lighten;
+      opacity: 0.5;
+    }
+    .container {
+      position: relative;
+      z-index: 2;
+      max-width: 500px;
+      width: 90%;
+      min-height: 420px;
+      padding: 2.5rem 2rem 2rem 2rem;
+      border-radius: var(--radius-card);
+      background: var(--glass);
+      box-shadow: var(--shadow-card);
+      border: 2px solid var(--teal);
+      backdrop-filter: blur(var(--blur));
+      -webkit-backdrop-filter: blur(var(--blur));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+    .header {
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+    .header p {
+      font-family: 'Inter', Arial, sans-serif;
+      font-size: 1.1rem;
+      color: var(--gray);
+      font-weight: 500;
+      margin-bottom: 0;
+    }
+    .upload-section {
+      margin-bottom: 2rem;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .file-upload {
+      position: relative;
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+      cursor: pointer;
+      background: var(--teal);
+      color: var(--white);
+      padding: 1rem 0.04rem;
+      border-radius: var(--radius-btn);
+      font-size: 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      border: none;
+      box-shadow: var(--shadow-btn);
+      transition: box-shadow var(--transition), transform var(--transition), background var(--transition);
+      margin-bottom: 0.5rem;
+      outline: none;
+      width: 100%;
+      max-width: 250px;
+      text-align: center;
+    }
+    .file-upload:hover, .file-upload:focus {
+      box-shadow: var(--shadow-btn-hover);
+      transform: translateY(-2px) scale(1.03);
+      background: #00e6c2;
+    }
+    .file-upload input[type=file] {
+      position: absolute;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+    .upload-info {
+      margin-top: 0.5rem;
+      color: var(--gray);
+      font-size: 0.97rem;
+      font-family: 'Inter', Arial, sans-serif;
+      font-weight: 500;
+      text-align: center;
+    }
+    .camera-link {
+      margin-top: 1.2rem;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+    .btn {
+      padding: 0.9rem 0.1rem;
+      border: none;
+      border-radius: var(--radius-btn);
+      font-size: 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      cursor: pointer;
+      background: var(--teal);
+      color: var(--white);
+      box-shadow: var(--shadow-btn);
+      transition: box-shadow var(--transition), transform var(--transition), background var(--transition);
+      margin-top: 0;
+      margin-bottom: 0;
+      outline: none;
+      display: inline-block;
+      width: 100%;
+      max-width: 340px;
+      text-decoration: none;
+      text-align: center;
+    }
+    .btn:hover, .btn:focus {
+      background: #00e6c2;
+      box-shadow: var(--shadow-btn-hover);
+      transform: translateY(-2px) scale(1.03);
+    }
+    .loading {
+      display: none;
+      margin: 1.5rem 0;
+      text-align: center;
+    }
+    .spinner {
+      border: 3px solid var(--charcoal);
+      border-top: 3px solid var(--teal);
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 10px;
+      box-shadow: 0 0 12px 2px var(--teal), 0 0 32px 4px var(--teal);
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .result-section {
+      display: none;
+      margin-top: 2rem;
+      width: 100%;
+    }
+    .result-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+    .image-container {
+      text-align: center;
+    }
+    .image-container img {
+      max-width: 100%;
+      border-radius: 18px;
+      border: 2px solid var(--glass);
+      box-shadow: 0 2px 12px 0 #00d4aa22;
+      background: var(--charcoal);
+      padding: 0.25rem;
+    }
+    .results-info {
+      text-align: left;
+      padding: 1.5rem;
+      background: var(--glass);
+      border-radius: 18px;
+      border: 1.5px solid var(--border-glass);
+      margin-top: 1rem;
+      box-shadow: 0 1px 8px 0 #00d4aa22;
+      font-family: 'Inter', Arial, sans-serif;
+      max-width: 500px;
+      width: 90%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .face-result {
+      background: rgba(0,212,170,0.07);
+      padding: 1rem 1.2rem;
+      margin: 0.7rem 0;
+      border-radius: 16px;
+      border-left: 4px solid var(--teal);
+      box-shadow: 0 1px 8px 0 #00d4aa22;
+    }
+    .face-result h4 {
+      color: var(--teal);
+      margin-bottom: 0.3rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .age-display {
+      font-size: 1.2rem;
+      font-family: 'Orbitron', Arial, sans-serif;
+      font-weight: 700;
+      color: var(--teal);
+      letter-spacing: 1px;
+    }
+    .confidence {
+      color: var(--gray);
+      font-size: 0.97rem;
+      font-family: 'Inter', Arial, sans-serif;
+      font-weight: 500;
+    }
+    .error {
+      background: rgba(255,59,106,0.08);
+      color: var(--error);
+      padding: 1rem 1.2rem;
+      border-radius: 16px;
+      margin: 1.2rem 0;
+      border-left: 4px solid var(--error);
+      font-family: 'Inter', Arial, sans-serif;
+      box-shadow: 0 0 8px 0 #ff3b6a33;
+    }
+    .success {
+      background: rgba(0,255,179,0.08);
+      color: var(--success);
+      padding: 1rem 1.2rem;
+      border-radius: 16px;
+      margin: 1.2rem 0;
+      border-left: 4px solid var(--success);
+      font-family: 'Inter', Arial, sans-serif;
+      box-shadow: 0 0 8px 0 #00ffb333;
+    }
+    .disclaimer {
+      margin-top: 2rem;
+      font-size: 0.95rem;
+      color: var(--gray);
+      background: var(--glass);
+      border-radius: 16px;
+      padding: 1rem 1.2rem;
+      border: 1.5px solid var(--border-glass);
+      font-family: 'Inter', Arial, sans-serif;
+      text-align: center;
+      box-shadow: 0 1px 8px 0 #00d4aa22;
+      max-width: 500px;
+      width: 90%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    /* Pulse animation for status */
+    .pulse {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--teal);
+      box-shadow: 0 0 0 0 var(--teal);
+      animation: pulse 1.2s infinite cubic-bezier(0.4,0,0.2,1);
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 var(--teal); opacity: 1; }
+      70% { box-shadow: 0 0 0 8px rgba(0,212,170,0); opacity: 0.7; }
+      100% { box-shadow: 0 0 0 0 rgba(0,212,170,0); opacity: 1; }
+    }
+    
+    /* Responsive Design */
+    @media (max-width: 900px) {
+      .container, .disclaimer { max-width: 98vw; }
+    }
+    @media (max-width: 768px) {
+      .headline {
+        margin-top: 2rem;
+        margin-bottom: 2rem;
+        padding: 0 1rem;
+      }
+      .headline h1 {
+        font-size: clamp(2.5rem, 10vw, 3.5rem);
+      }
+      .container {
+        width: 95%;
+        max-width: 95%;
+        padding: 2rem 1.5rem 1.5rem 1.5rem;
+        min-height: 380px;
+        margin-left: 0;
+      }
+      .result-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+      .btn, .file-upload {
+        width: 100%;
+        max-width: 100%;
+        padding: 1rem 1.5rem;
+        font-size: 0.95rem;
+      }
+      .results-info, .face-result {
+        padding: 1rem;
+      }
+      .disclaimer {
+        width: 95%;
+        max-width: 95%;
+        font-size: 0.9rem;
+        padding: 1rem;
+        margin-top: 1.5rem;
+      }
+      .header p {
+        font-size: 1rem;
+      }
+      .upload-info {
+        font-size: 0.9rem;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .headline {
+        margin-top: 1.5rem;
+        margin-bottom: 1.5rem;
+        padding: 0 0.5rem;
+      }
+      .headline h1 {
+        font-size: clamp(2rem, 12vw, 3rem);
+        letter-spacing: 1px;
+      }
+      .container {
+        width: 98%;
+        max-width: 98%;
+        padding: 1.5rem 1rem 1rem 1rem;
+        min-height: 350px;
+        margin: 0 1%;
+      }
+      .header {
+        margin-bottom: 1.5rem;
+      }
+      .header p {
+        font-size: 0.95rem;
+      }
+      .btn, .file-upload {
+        padding: 0.8rem 0.01rem;
+        font-size: 0.9rem;
+      }
+      .upload-info {
+        font-size: 0.85rem;
+        margin-top: 0.75rem;
+      }
+      .results-info, .face-result {
+        padding: 0.8rem;
+      }
+      .image-container img {
+        border-radius: 12px;
+      }
+      .disclaimer {
+        width: 98%;
+        max-width: 98%;
+        font-size: 0.85rem;
+        padding: 0.8rem;
+        border-radius: 12px;
+        margin: 1rem 1%;
+      }
+      .face-result h4 {
+        font-size: 0.9rem;
+      }
+      .age-display {
+        font-size: 1.1rem;
+      }
+      .confidence {
+        font-size: 0.9rem;
+      }
+    }
+    
+    @media (max-width: 360px) {
+      .headline h1 {
+        font-size: 1.8rem;
+      }
+      .container {
+        width: 99%;
+        padding: 1.2rem 0.8rem 0.8rem 0.8rem;
+        min-height: 320px;
+      }
+      .header p {
+        font-size: 0.9rem;
+      }
+      .btn, .file-upload {
+        padding: 0.8rem 0.01rem;
+        font-size: 0.6rem;
+      }
+      .upload-info {
+        font-size: 0.8rem;
+      }
+      .disclaimer {
+        font-size: 0.8rem;
+        padding: 0.7rem;
+      }
+    }
+    
+    /* Landscape orientation for mobile */
+    @media (max-height: 500px) and (orientation: landscape) {
+      .headline {
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+      }
+      .headline h1 {
+        font-size: 2rem;
+      }
+      .container {
+        min-height: 280px;
+        padding: 1.5rem 1rem;
+      }
+      .disclaimer {
+        margin-top: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="particles"></div>
+  <div class="scanlines"></div>
+  <div class="headline">
+    <h1>Age Detection</h1>
+  </div>
+  <div class="container">
+    <div class="header">
+      <p>Upload an image to detect age using SSR-NET</p>
+    </div>
+    <div class="upload-section">
+      <label class="file-upload">
+        Choose Image
+        <input type="file" id="imageInput" accept="image/*">
+      </label>
+      <div class="upload-info">
+        Supported formats: JPG, PNG, GIF, BMP (Max 16MB)
+      </div>
+      <div class="camera-link">
+        <a href="/camera" class="btn">Live Camera Detection</a>
+      </div>
+    </div>
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p><span class="pulse"></span>Processing image...</p>
+    </div>
+    <div class="result-section" id="resultSection">
+      <div class="result-grid">
+        <div class="image-container">
+          <h3 style="font-family:'Orbitron',Arial,sans-serif;font-size:1rem;font-weight:700;color:var(--teal);margin-bottom:8px;">Original Image</h3>
+          <img id="originalImage" alt="Original">
+        </div>
+        <div class="image-container">
+          <h3 style="font-family:'Orbitron',Arial,sans-serif;font-size:1rem;font-weight:700;color:var(--teal);margin-bottom:8px;">Result with Age Detection</h3>
+          <img id="resultImage" alt="Result">
+        </div>
+      </div>
+      <div class="results-info" id="resultsInfo">
+        <!-- Results will be populated here -->
+      </div>
+    </div>
+  </div>
+  <div class="disclaimer">
+    Disclaimer: This demo is strictly for educational purposes only. Age predictions can be inaccurate due to lighting, ethnicity, hair coloring, skincare, and other factors. Not for commercial use.
+  </div>
+  <script>
+    // Floating particles
+    function randomBetween(a, b) { return a + Math.random() * (b - a); }
+    const particles = document.querySelector('.particles');
+    for (let i = 0; i < 22; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      p.style.width = p.style.height = randomBetween(8, 22) + 'px';
+      p.style.left = randomBetween(0, 98) + 'vw';
+      p.style.top = randomBetween(0, 98) + 'vh';
+      p.style.opacity = randomBetween(0.15, 0.5);
+      p.style.animationDuration = randomBetween(8, 18) + 's';
+      particles.appendChild(p);
+    }
+    document.getElementById('imageInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        uploadImage(file);
+      }
+    });
+    function uploadImage(file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('resultSection').style.display = 'none';
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById('originalImage').src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+      fetch('/upload', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById('loading').style.display = 'none';
+        if (data.success) {
+          document.getElementById('resultImage').src = 'data:image/jpeg;base64,' + data.result_image;
+          const resultsInfo = document.getElementById('resultsInfo');
+          resultsInfo.innerHTML = '<h3 style="font-family:Orbitron,Arial,sans-serif;font-size:1rem;font-weight:700;color:#00d4aa;margin-bottom:8px;">Detection Results</h3>';
+          data.results.forEach((result, index) => {
+            const faceDiv = document.createElement('div');
+            faceDiv.className = 'face-result';
+            faceDiv.innerHTML = `
+              <h4>Face ${result.face_id}</h4>
+              <div class="age-display">Age: ${result.age} years</div>
+              <div class="confidence">Confidence: ${(result.confidence * 100).toFixed(1)}%</div>
+            `;
+            resultsInfo.appendChild(faceDiv);
+          });
+          document.getElementById('resultSection').style.display = 'block';
+        } else {
+          showError(data.error);
+        }
+      })
+      .catch(error => {
+        document.getElementById('loading').style.display = 'none';
+        showError('An error occurred while processing the image.');
+        console.error('Error:', error);
+      });
+    }
+    function showError(message) {
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'error';
+      errorDiv.textContent = message;
+      const container = document.querySelector('.container');
+      container.appendChild(errorDiv);
+      setTimeout(() => {
+        errorDiv.remove();
+      }, 5000);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Age Detection - SSR-NET</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700&family=Poppins:wght@700&family=Inter:wght@600&family=Roboto:wght@500;700&family=Roboto+Mono:wght@700&family=Space+Grotesk:wght@700&family=Consolas&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0F172A;
+            --primary: #14B8A6;
+            --primary-hover: #2dd4bf;
+            --secondary: #475569;
+            --secondary-hover: #64748b;
+            --input-bg: #1E293B;
+            --text: #F1F5F9;
+            --border: #334155;
+            --highlight: #EAB308;
+            --accent: #334155;
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Inter', 'Roboto', Arial, sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: var(--text);
+        }
+        .container {
+            background: var(--input-bg);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+            padding: 40px;
+            max-width: 900px;
+            width: 100%;
+            text-align: center;
+            border: 1.5px solid var(--border);
+            position: relative;
+        }
+        .header {
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-family: 'Montserrat', 'Poppins', Arial, sans-serif;
+            font-size: 32px;
+            font-weight: bold;
+            color: var(--text);
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+        .header p {
+            font-family: 'Inter', 'Roboto', Arial, sans-serif;
+            font-size: 22px;
+            font-weight: 600;
+            color: #cbd5e1;
+        }
+        .camera-section {
+            margin-bottom: 30px;
+        }
+        .camera-container {
+            position: relative;
+            display: inline-block;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(20,184,166,0.15);
+            border: 2px solid var(--accent);
+            background: #111827;
+        }
+        .camera-feed {
+            width: 640px;
+            height: 480px;
+            background: #000;
+            border-radius: 15px;
+        }
+        .camera-feed img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .camera-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15,23,42,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text);
+            font-size: 1.2rem;
+            border-radius: 15px;
+            font-family: 'Inter', 'Roboto', Arial, sans-serif;
+        }
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-family: 'Roboto Mono', 'Roboto', monospace;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-success {
+            background: var(--primary);
+            color: var(--text);
+        }
+        .btn-success:hover {
+            background: var(--primary-hover);
+        }
+        .btn-danger {
+            background: var(--secondary);
+            color: var(--text);
+        }
+        .btn-danger:hover {
+            background: var(--secondary-hover);
+        }
+        .btn-secondary {
+            background: var(--input-bg);
+            color: var(--text);
+            border: 1.5px solid var(--border);
+        }
+        .btn-secondary:hover {
+            background: #273449;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-family: 'Inter', 'Roboto', Arial, sans-serif;
+            border: 1.5px solid var(--border);
+        }
+        .status.connected {
+            background: #134e4a;
+            color: #a7ffeb;
+        }
+        .status.disconnected {
+            background: #1e293b;
+            color: #f87171;
+        }
+        .status.processing {
+            background: #334155;
+            color: #facc15;
+        }
+        .info-panel {
+            margin-top: 30px;
+            padding: 20px;
+            background: #111827;
+            border-radius: 10px;
+            text-align: left;
+            border: 1.5px solid var(--border);
+        }
+        .info-panel h3 {
+            font-family: 'Inter', 'Roboto', Arial, sans-serif;
+            color: var(--text);
+            margin-bottom: 15px;
+            font-size: 22px;
+            font-weight: 600;
+        }
+        .info-list {
+            list-style: none;
+            padding: 0;
+        }
+        .info-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #1e293b;
+            color: #cbd5e1;
+            font-size: 16px;
+        }
+        .info-list li:last-child {
+            border-bottom: none;
+        }
+        .info-list strong {
+            color: var(--highlight);
+        }
+        .back-link {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 700;
+            padding: 10px 20px;
+            background: rgba(20,184,166,0.08);
+            border-radius: 25px;
+            transition: all 0.2s;
+            font-family: 'Roboto Mono', 'Roboto', monospace;
+            border: 1.5px solid var(--primary);
+        }
+        .back-link:hover {
+            background: rgba(20,184,166,0.18);
+            color: #fff;
+        }
+        .age-highlight {
+            color: var(--highlight);
+            font-family: 'Space Grotesk', 'Montserrat', Arial, sans-serif;
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: 1px;
+        }
+        .disclaimer {
+            margin-top: 32px;
+            font-size: 14px;
+            color: #f87171;
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 14px 20px;
+            border: 1.5px solid var(--border);
+            font-family: 'Consolas', 'Courier', monospace;
+            text-align: center;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            .camera-feed {
+                width: 100%;
+                max-width: 400px;
+                height: 300px;
+            }
+            .header h1 {
+                font-size: 2rem;
+            }
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            .btn {
+                width: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-link">← Back to Upload</a>
+    <div class="container">
+        <div class="header">
+            <h1>Live Age Detection</h1>
+            <p>Real-time age and gender detection using your camera</p>
+        </div>
+        <div class="camera-section">
+            <div class="camera-container">
+                <div class="camera-feed" id="cameraFeed">
+                    <div class="camera-overlay" id="cameraOverlay">
+                        Click "Start Camera" to begin
+                    </div>
+                </div>
+            </div>
+            <div class="controls">
+                <button class="btn btn-success" id="startBtn" onclick="startCamera()">Start Camera</button>
+                <button class="btn btn-danger" id="stopBtn" onclick="stopCamera()" disabled>Stop Camera</button>
+                <button class="btn btn-secondary" onclick="captureImage()">Capture Image</button>
+            </div>
+            <div class="status disconnected" id="status">
+                Camera disconnected
+            </div>
+        </div>
+        <div class="disclaimer">
+            Disclaimer: This demo is strictly for educational purposes only. Age predictions can be inaccurate due to lighting, ethnicity, hair coloring, skincare, and other factors. Not for commercial use.
+        </div>
+    </div>
+    <script>
+        let cameraActive = false;
+        let stream = null;
+        function updateStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+        function updateButtons(startEnabled, stopEnabled) {
+            document.getElementById('startBtn').disabled = !startEnabled;
+            document.getElementById('stopBtn').disabled = !stopEnabled;
+        }
+        function startCamera() {
+            if (cameraActive) return;
+            updateStatus('Starting camera...', 'processing');
+            const cameraFeed = document.getElementById('cameraFeed');
+            cameraFeed.innerHTML = '<img src="/video_feed" alt="Camera Feed">';
+            const overlay = document.getElementById('cameraOverlay');
+            if (overlay) overlay.style.display = 'none';
+            cameraActive = true;
+            updateButtons(false, true);
+            updateStatus('Camera active - Detecting faces...', 'connected');
+            fetch('/start_camera')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        console.log('Camera started successfully');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error starting camera:', error);
+                    updateStatus('Error starting camera', 'disconnected');
+                });
+        }
+        function stopCamera() {
+            if (!cameraActive) return;
+            updateStatus('Stopping camera...', 'processing');
+            const cameraFeed = document.getElementById('cameraFeed');
+            cameraFeed.innerHTML = '<div class="camera-overlay" id="cameraOverlay">Click "Start Camera" to begin</div>';
+            cameraActive = false;
+            updateButtons(true, false);
+            updateStatus('Camera disconnected', 'disconnected');
+            fetch('/stop_camera')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        console.log('Camera stopped successfully');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error stopping camera:', error);
+                });
+        }
+        function captureImage() {
+            if (!cameraActive) {
+                alert('Please start the camera first');
+                return;
+            }
+            const img = document.querySelector('#cameraFeed img');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            ctx.drawImage(img, 0, 0);
+            canvas.toBlob(function(blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `age_detection_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.jpg`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 'image/jpeg');
+        }
+        window.addEventListener('beforeunload', function() {
+            if (cameraActive) {
+                stopCamera();
+            }
+        });
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden && cameraActive) {
+                stopCamera();
+            }
+        });
+    </script>
+</body>
+</html> 
