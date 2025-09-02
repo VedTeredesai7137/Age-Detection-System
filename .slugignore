@@ -1,0 +1,9 @@
+*.pdf
+*.png
+results/
+demo/TYY_demo_mtcnn.py
+demo/TYY_demo_ssrnet_lbp_webcam.py
+demo/TY_demo_image.py
+.git
+.gitignore
+README.md

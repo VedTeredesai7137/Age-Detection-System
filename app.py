@@ -250,26 +250,41 @@ def generate_camera_frames():
     global camera
     
     if camera is None:
-        camera = cv2.VideoCapture(0)
-        camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        try:
+            camera = cv2.VideoCapture(0)
+            camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        except Exception as e:
+            # If camera initialization fails, return error frame
+            error_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+            cv2.putText(error_frame, 'Camera not available', 
+                       (150, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            ret, buffer = cv2.imencode('.jpg', error_frame)
+            if ret:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            return
     
     while True:
-        success, frame = camera.read()
-        if not success:
+        try:
+            success, frame = camera.read()
+            if not success:
+                break
+            
+            # Process frame for age and gender detection
+            processed_frame = process_camera_frame(frame)
+            
+            # Convert frame to JPEG
+            ret, buffer = cv2.imencode('.jpg', processed_frame)
+            if not ret:
+                continue
+            
+            # Yield frame as bytes
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+        except Exception as e:
+            print(f"Camera streaming error: {e}")
             break
-        
-        # Process frame for age and gender detection
-        processed_frame = process_camera_frame(frame)
-        
-        # Convert frame to JPEG
-        ret, buffer = cv2.imencode('.jpg', processed_frame)
-        if not ret:
-            continue
-        
-        # Yield frame as bytes
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
 
 @app.route('/')
 def index():
@@ -314,6 +329,53 @@ def upload_file():
     
     return jsonify({'error': 'Invalid file type'}), 400
 
+@app.route('/upload_base64', methods=['POST'])
+def upload_base64():
+    """Handle base64 image uploads from WebRTC camera"""
+    try:
+        data = request.get_json()
+        if not data or 'image' not in data:
+            return jsonify({'error': 'No image data provided'}), 400
+        
+        # Load model if not loaded
+        if not load_age_model():
+            return jsonify({'error': 'Failed to load model'}), 500
+        
+        # Decode base64 image
+        image_data = data['image']
+        if image_data.startswith('data:image'):
+            # Remove data URL prefix
+            image_data = image_data.split(',')[1]
+        
+        # Decode and save image
+        import uuid
+        filename = f"webcam_{uuid.uuid4().hex[:8]}.jpg"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        with open(filepath, 'wb') as f:
+            f.write(base64.b64decode(image_data))
+        
+        # Predict age
+        results, result_filename = predict_age(filepath)
+        
+        if results is None:
+            return jsonify({'error': result_filename}), 400
+        
+        # Convert result image to base64 for display
+        result_path = os.path.join(app.config['RESULT_FOLDER'], result_filename)
+        with open(result_path, 'rb') as img_file:
+            img_data = base64.b64encode(img_file.read()).decode('utf-8')
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'result_image': img_data,
+            'result_filename': result_filename
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Processing failed: {str(e)}'}), 500
+
 @app.route('/results/<filename>')
 def result_file(filename):
     return send_from_directory(app.config['RESULT_FOLDER'], filename)
@@ -336,11 +398,15 @@ def video_feed():
 def start_camera():
     """Start camera stream"""
     global camera
-    if camera is None:
-        camera = cv2.VideoCapture(0)
-        camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    return jsonify({'status': 'success', 'message': 'Camera started'})
+    
+    try:
+        if camera is None:
+            camera = cv2.VideoCapture(0)
+            camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        return jsonify({'status': 'success', 'message': 'Camera started'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'Failed to start camera: {str(e)}'})
 
 @app.route('/stop_camera')
 def stop_camera():
@@ -352,10 +418,15 @@ def stop_camera():
     return jsonify({'status': 'success', 'message': 'Camera stopped'})
 
 if __name__ == '__main__':
-    # Load model on startup
+    # Load models on startup
+    print("[INFO] Loading models on startup...")
     if load_age_model():
-        print("[INFO] Flask app starting...")
+        print("[INFO] Models loaded successfully!")
+        print("[INFO] Starting Flask server...")
+        # Use environment variable PORT for deployment (Render provides this)
         port = int(os.environ.get('PORT', 5000))
         app.run(debug=False, host='0.0.0.0', port=port)
     else:
-        print("[ERROR] Failed to load model. Exiting...")
+        print("[ERROR] Failed to load models. Exiting...")
+
+

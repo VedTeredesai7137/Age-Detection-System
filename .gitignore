@@ -1,8 +1,14 @@
-# Python
+# Virtual environment
+venv/
+env/
+
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -21,14 +27,42 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual Environment
-venv/
-env/
-ENV/
-env.bak/
-venv.bak/
+# Flask-specific files
+instance/
+.flaskenv
 
-# IDE
+# Database files
+*.db
+*.sqlite
+/database.sqlite
+/app.db
+
+# Uploaded files (keep directories but not contents)
+/uploads/*
+!/uploads/.gitkeep
+/results/*
+!/results/.gitkeep
+/static/uploads/
+
+# Unit test / coverage reports
+.coverage
+.tox/
+.pytest_cache/
+htmcov/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+typed_ast/
+
+# My project-specific files
+# If you have specific files you want to ignore, add them here.
+# For example:
+my_config.py
+my_secrets.json
+
+# Editor/IDE files
+.idea/
 .vscode/
 .idea/
 *.swp

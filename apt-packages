@@ -1,0 +1,11 @@
+# System packages needed for camera functionality
+# This file tells Render to install additional system packages
+
+# Video4Linux utils for camera support
+v4l-utils
+
+# FFmpeg for video processing  
+ffmpeg
+
+# Additional camera libraries
+libv4l-dev

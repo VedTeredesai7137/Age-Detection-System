@@ -265,6 +265,7 @@
                 <button class="btn btn-success" id="startBtn" onclick="startCamera()">Start Camera</button>
                 <button class="btn btn-danger" id="stopBtn" onclick="stopCamera()" disabled>Stop Camera</button>
                 <button class="btn btn-secondary" onclick="captureImage()">Capture Image</button>
+                <button class="btn btn-secondary" onclick="captureAndAnalyze()">Capture & Analyze Age</button>
             </div>
             <div class="status disconnected" id="status">
                 Camera disconnected
@@ -286,58 +287,246 @@
             document.getElementById('startBtn').disabled = !startEnabled;
             document.getElementById('stopBtn').disabled = !stopEnabled;
         }
+        let localStream = null;
+        let usingWebRTC = false;
+        
         function startCamera() {
             if (cameraActive) return;
             updateStatus('Starting camera...', 'processing');
-            const cameraFeed = document.getElementById('cameraFeed');
-            cameraFeed.innerHTML = '<img src="/video_feed" alt="Camera Feed">';
-            const overlay = document.getElementById('cameraOverlay');
-            if (overlay) overlay.style.display = 'none';
-            cameraActive = true;
-            updateButtons(false, true);
-            updateStatus('Camera active - Detecting faces...', 'connected');
-            fetch('/start_camera')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        console.log('Camera started successfully');
-                    }
+            
+            // First try server camera
+            tryServerCamera().then(success => {
+                if (!success) {
+                    // Fallback to browser camera (WebRTC)
+                    tryBrowserCamera();
+                }
+            });
+        }
+        
+        function tryServerCamera() {
+            return new Promise((resolve) => {
+                const cameraFeed = document.getElementById('cameraFeed');
+                cameraFeed.innerHTML = '<img src="/video_feed" alt="Camera Feed">';
+                const overlay = document.getElementById('cameraOverlay');
+                if (overlay) overlay.style.display = 'none';
+                
+                fetch('/start_camera')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            console.log('Server camera started successfully');
+                            cameraActive = true;
+                            usingWebRTC = false;
+                            updateButtons(false, true);
+                            updateStatus('Server camera active - Detecting faces...', 'connected');
+                            resolve(true);
+                        } else {
+                            console.log('Server camera failed, trying browser camera');
+                            resolve(false);
+                        }
+                    })
+                    .catch(error => {
+                        console.log('Server camera error, trying browser camera:', error);
+                        resolve(false);
+                    });
+            });
+        }
+        
+        function tryBrowserCamera() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: 640, 
+                        height: 480,
+                        facingMode: 'user'
+                    } 
+                })
+                .then(stream => {
+                    localStream = stream;
+                    const cameraFeed = document.getElementById('cameraFeed');
+                    const video = document.createElement('video');
+                    video.srcObject = stream;
+                    video.autoplay = true;
+                    video.style.width = '100%';
+                    video.style.height = '100%';
+                    video.style.objectFit = 'cover';
+                    
+                    cameraFeed.innerHTML = '';
+                    cameraFeed.appendChild(video);
+                    
+                    const overlay = document.getElementById('cameraOverlay');
+                    if (overlay) overlay.style.display = 'none';
+                    
+                    cameraActive = true;
+                    usingWebRTC = true;
+                    updateButtons(false, true);
+                    updateStatus('Browser camera active (WebRTC)', 'connected');
+                    
+                    console.log('Browser camera started successfully');
                 })
                 .catch(error => {
-                    console.error('Error starting camera:', error);
-                    updateStatus('Error starting camera', 'disconnected');
+                    console.error('Browser camera error:', error);
+                    updateStatus('Camera access denied or not available', 'disconnected');
+                    updateButtons(true, false);
                 });
+            } else {
+                updateStatus('Camera not supported in this browser', 'disconnected');
+                updateButtons(true, false);
+            }
         }
         function stopCamera() {
             if (!cameraActive) return;
             updateStatus('Stopping camera...', 'processing');
+            
+            if (usingWebRTC && localStream) {
+                // Stop WebRTC stream
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+                usingWebRTC = false;
+            } else {
+                // Stop server camera
+                fetch('/stop_camera')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            console.log('Server camera stopped successfully');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error stopping camera:', error);
+                    });
+            }
+            
             const cameraFeed = document.getElementById('cameraFeed');
             cameraFeed.innerHTML = '<div class="camera-overlay" id="cameraOverlay">Click "Start Camera" to begin</div>';
             cameraActive = false;
             updateButtons(true, false);
             updateStatus('Camera disconnected', 'disconnected');
-            fetch('/stop_camera')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        console.log('Camera stopped successfully');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error stopping camera:', error);
-                });
         }
+        function captureAndAnalyze() {
+            if (!cameraActive) {
+                alert('Please start the camera first');
+                return;
+            }
+            
+            let canvas = document.createElement('canvas');
+            let ctx = canvas.getContext('2d');
+            
+            if (usingWebRTC) {
+                // Capture from WebRTC video element
+                const video = document.querySelector('#cameraFeed video');
+                if (video) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0);
+                } else {
+                    alert('Video element not found');
+                    return;
+                }
+            } else {
+                // Capture from server camera feed
+                const img = document.querySelector('#cameraFeed img');
+                if (img) {
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    ctx.drawImage(img, 0, 0);
+                } else {
+                    alert('Camera image not found');
+                    return;
+                }
+            }
+            
+            // Convert to base64
+            const imageData = canvas.toDataURL('image/jpeg', 0.8);
+            
+            // Show processing status
+            updateStatus('Analyzing image...', 'processing');
+            
+            // Send to server for age detection
+            fetch('/upload_base64', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ image: imageData })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAnalysisResults(data);
+                } else {
+                    updateStatus('Analysis failed: ' + (data.error || 'Unknown error'), 'disconnected');
+                }
+            })
+            .catch(error => {
+                console.error('Analysis error:', error);
+                updateStatus('Analysis failed: Network error', 'disconnected');
+            });
+        }
+        
+        function showAnalysisResults(data) {
+            // Create or update results panel
+            let resultsPanel = document.getElementById('analysisResults');
+            if (!resultsPanel) {
+                resultsPanel = document.createElement('div');
+                resultsPanel.id = 'analysisResults';
+                resultsPanel.className = 'info-panel';
+                resultsPanel.style.marginTop = '20px';
+                document.querySelector('.container').appendChild(resultsPanel);
+            }
+            
+            let resultsHTML = '<h3>Age Detection Results</h3>';
+            
+            // Show result image
+            resultsHTML += `<div style="text-align: center; margin-bottom: 20px;">`;
+            resultsHTML += `<img src="data:image/jpeg;base64,${data.result_image}" style="max-width: 100%; border-radius: 10px; border: 2px solid var(--primary);"/>`;
+            resultsHTML += `</div>`;
+            
+            // Show results for each face
+            resultsHTML += '<ul class="info-list">';
+            data.results.forEach((result, index) => {
+                resultsHTML += `<li><strong>Face ${result.face_id}:</strong> Age ${result.age} years (Confidence: ${(result.confidence * 100).toFixed(1)}%)</li>`;
+            });
+            resultsHTML += '</ul>';
+            
+            resultsPanel.innerHTML = resultsHTML;
+            
+            updateStatus(`Analysis complete - Found ${data.results.length} face(s)`, 'connected');
+        }
+        
         function captureImage() {
             if (!cameraActive) {
                 alert('Please start the camera first');
                 return;
             }
-            const img = document.querySelector('#cameraFeed img');
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = img.naturalWidth;
-            canvas.height = img.naturalHeight;
-            ctx.drawImage(img, 0, 0);
+            
+            let canvas = document.createElement('canvas');
+            let ctx = canvas.getContext('2d');
+            
+            if (usingWebRTC) {
+                // Capture from WebRTC video element
+                const video = document.querySelector('#cameraFeed video');
+                if (video) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0);
+                } else {
+                    alert('Video element not found');
+                    return;
+                }
+            } else {
+                // Capture from server camera feed
+                const img = document.querySelector('#cameraFeed img');
+                if (img) {
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    ctx.drawImage(img, 0, 0);
+                } else {
+                    alert('Camera image not found');
+                    return;
+                }
+            }
+            
             canvas.toBlob(function(blob) {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -354,9 +543,17 @@
                 stopCamera();
             }
         });
+        
         document.addEventListener('visibilitychange', function() {
             if (document.hidden && cameraActive) {
                 stopCamera();
+            }
+        });
+        
+        // Clean up WebRTC stream on page unload
+        window.addEventListener('unload', function() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
             }
         });
     </script>
