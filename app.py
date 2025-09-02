@@ -351,10 +351,4 @@ def stop_camera():
         camera = None
     return jsonify({'status': 'success', 'message': 'Camera stopped'})
 
-if __name__ == '__main__':
-    # Load model on startup
-    if load_age_model():
-        print("[INFO] Flask app starting...")
-        app.run(debug=True, host='0.0.0.0', port=5000)
-    else:
-        print("[ERROR] Failed to load model. Exiting...")
+
