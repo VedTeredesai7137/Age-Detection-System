@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Update pip and setuptools first
-pip install --upgrade pip setuptools wheel
+# Install setuptools and wheel first to avoid build_meta issues
+pip install --upgrade pip
+pip install setuptools==68.2.2 wheel==0.41.2
 
 # Install dependencies
 pip install -r requirements.txt
