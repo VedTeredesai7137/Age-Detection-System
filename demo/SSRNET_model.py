@@ -3,13 +3,12 @@ import sys
 import numpy as np
 from keras.models import Model
 from keras.layers import Input, Activation, add, Dense, Flatten, Dropout, Multiply, Embedding, Lambda, Add, Concatenate, Activation
-from keras.layers.convolutional import Conv2D, AveragePooling2D, MaxPooling2D
-from keras.layers.normalization import BatchNormalization
+from keras.layers import Conv2D, AveragePooling2D, MaxPooling2D, BatchNormalization
 from keras.regularizers import l2
 from keras import backend as K
-from keras.optimizers import SGD,Adam
-from keras.utils import plot_model
-from keras.engine.topology import Layer
+from keras.optimizers import SGD, Adam
+# from keras.utils import plot_model  # Not used, removed to avoid compatibility issues
+from keras.layers import Layer
 from keras import activations, initializers, regularizers, constraints
 
 sys.setrecursionlimit(2 ** 20)
