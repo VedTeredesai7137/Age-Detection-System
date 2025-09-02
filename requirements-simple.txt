@@ -1,0 +1,8 @@
+Flask==2.3.3
+opencv-python-headless==4.8.0.76
+numpy
+tensorflow
+keras
+mtcnn==0.1.1
+Pillow
+gunicorn
