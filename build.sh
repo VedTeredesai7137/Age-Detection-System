@@ -2,7 +2,7 @@
 
 # Install setuptools and wheel first to avoid build_meta issues
 pip install --upgrade pip
-pip install setuptools==68.2.2 wheel==0.41.2
+pip install setuptools==65.6.3 wheel==0.38.4
 
 # Install dependencies
 pip install -r requirements.txt
