@@ -249,27 +249,53 @@ def generate_camera_frames():
     """Generate camera frames for streaming"""
     global camera
     
+    # Check if we're in a deployment environment (no camera access)
+    if os.environ.get('RENDER'):
+        # Return a static frame indicating camera not available in deployment
+        static_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        cv2.putText(static_frame, 'Camera not available in deployment', 
+                   (50, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        ret, buffer = cv2.imencode('.jpg', static_frame)
+        if ret:
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+        return
+    
     if camera is None:
-        camera = cv2.VideoCapture(0)
-        camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        try:
+            camera = cv2.VideoCapture(0)
+            camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        except:
+            # If camera initialization fails, return error frame
+            error_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+            cv2.putText(error_frame, 'Camera not available', 
+                       (150, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            ret, buffer = cv2.imencode('.jpg', error_frame)
+            if ret:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            return
     
     while True:
-        success, frame = camera.read()
-        if not success:
+        try:
+            success, frame = camera.read()
+            if not success:
+                break
+            
+            # Process frame for age and gender detection
+            processed_frame = process_camera_frame(frame)
+            
+            # Convert frame to JPEG
+            ret, buffer = cv2.imencode('.jpg', processed_frame)
+            if not ret:
+                continue
+            
+            # Yield frame as bytes
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+        except:
             break
-        
-        # Process frame for age and gender detection
-        processed_frame = process_camera_frame(frame)
-        
-        # Convert frame to JPEG
-        ret, buffer = cv2.imencode('.jpg', processed_frame)
-        if not ret:
-            continue
-        
-        # Yield frame as bytes
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
 
 @app.route('/')
 def index():
@@ -336,11 +362,19 @@ def video_feed():
 def start_camera():
     """Start camera stream"""
     global camera
-    if camera is None:
-        camera = cv2.VideoCapture(0)
-        camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    return jsonify({'status': 'success', 'message': 'Camera started'})
+    
+    # Check if we're in a deployment environment
+    if os.environ.get('RENDER'):
+        return jsonify({'status': 'error', 'message': 'Camera not available in deployment environment'})
+    
+    try:
+        if camera is None:
+            camera = cv2.VideoCapture(0)
+            camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        return jsonify({'status': 'success', 'message': 'Camera started'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'Failed to start camera: {str(e)}'})
 
 @app.route('/stop_camera')
 def stop_camera():
@@ -350,5 +384,17 @@ def stop_camera():
         camera.release()
         camera = None
     return jsonify({'status': 'success', 'message': 'Camera stopped'})
+
+if __name__ == '__main__':
+    # Load models on startup
+    print("[INFO] Loading models on startup...")
+    if load_age_model():
+        print("[INFO] Models loaded successfully!")
+        print("[INFO] Starting Flask server...")
+        # Use environment variable PORT for deployment (Render provides this)
+        port = int(os.environ.get('PORT', 5000))
+        app.run(debug=False, host='0.0.0.0', port=port)
+    else:
+        print("[ERROR] Failed to load models. Exiting...")
 
 

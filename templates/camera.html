@@ -289,6 +289,14 @@
         function startCamera() {
             if (cameraActive) return;
             updateStatus('Starting camera...', 'processing');
+            
+            // Check if we're in a deployment environment
+            if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+                updateStatus('Camera not available in deployment environment', 'disconnected');
+                updateButtons(true, false);
+                return;
+            }
+            
             const cameraFeed = document.getElementById('cameraFeed');
             cameraFeed.innerHTML = '<img src="/video_feed" alt="Camera Feed">';
             const overlay = document.getElementById('cameraOverlay');
@@ -301,11 +309,15 @@
                 .then(data => {
                     if (data.status === 'success') {
                         console.log('Camera started successfully');
+                    } else {
+                        updateStatus(data.message || 'Error starting camera', 'disconnected');
+                        stopCamera();
                     }
                 })
                 .catch(error => {
                     console.error('Error starting camera:', error);
                     updateStatus('Error starting camera', 'disconnected');
+                    stopCamera();
                 });
         }
         function stopCamera() {

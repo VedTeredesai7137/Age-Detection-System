@@ -1,12 +1,12 @@
-Virtual environment
+# Virtual environment
 venv/
 env/
 
-Byte-compiled / optimized / DLL files
-pycache/
+# Byte-compiled / optimized / DLL files
+__pycache__/
 *.py[cod]
 
-Distribution / packaging
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -19,37 +19,41 @@ var/
 *.whl
 *.egg
 
-Flask-specific files
+# Flask-specific files
 instance/
 .flaskenv
 
-Database files
+# Database files
 *.db
 *.sqlite
 /database.sqlite
 /app.db
 
-Uploaded files
-/uploads/
+# Uploaded files (keep directories but not contents)
+/uploads/*
+!/uploads/.gitkeep
+/results/*
+!/results/.gitkeep
 /static/uploads/
 
-Unit test / coverage reports
+# Unit test / coverage reports
 .coverage
 .tox/
 .pytest_cache/
-htmlcov/
+htmcov/
 
-Type checking
+# Type checking
 .mypy_cache/
 .dmypy.json
 typed_ast/
 
-My project-specific files
-If you have specific files you want to ignore, add them here.
-For example:
+# My project-specific files
+# If you have specific files you want to ignore, add them here.
+# For example:
 my_config.py
 my_secrets.json
-Editor/IDE files
+
+# Editor/IDE files
 .idea/
 .vscode/
 *.swp

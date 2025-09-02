@@ -1,12 +1,12 @@
 Flask==2.3.3
 Werkzeug==2.3.7
-opencv-python==4.8.1.78
+opencv-python-headless==4.8.1.78
 numpy==1.24.3
 tensorflow==2.13.0
 keras==2.13.1
 mtcnn==0.1.1
 Pillow==10.0.1
 moviepy==1.0.3
-gunicorn
-setuptools
-wheel
+gunicorn==21.2.0
+setuptools==68.2.2
+wheel==0.41.2
