@@ -42,8 +42,12 @@ def load_age_model():
     if model is None:
         print("[INFO] Loading SSR-Net age model...")
         
-        # Build model architecture
-        model = SSR_net(64, [3, 3, 3], 1.0, 1.0)()
+        try:
+            # Build model architecture
+            model = SSR_net(64, [3, 3, 3], 1.0, 1.0)()
+        except Exception as e:
+            print(f"[ERROR] Failed to create age model: {e}")
+            return False
         
         # Find and load weights
         weights_path = find_weights_file()
@@ -61,8 +65,12 @@ def load_age_model():
     if model_gender is None:
         print("[INFO] Loading SSR-Net gender model...")
         
-        # Build gender model architecture
-        model_gender = SSR_net_general(64, [3, 3, 3], 1.0, 1.0)()
+        try:
+            # Build gender model architecture
+            model_gender = SSR_net_general(64, [3, 3, 3], 1.0, 1.0)()
+        except Exception as e:
+            print(f"[ERROR] Failed to create gender model: {e}")
+            return False
         
         # Find and load gender weights
         gender_weights_path = find_gender_weights_file()
