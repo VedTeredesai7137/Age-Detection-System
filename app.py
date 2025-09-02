@@ -249,24 +249,12 @@ def generate_camera_frames():
     """Generate camera frames for streaming"""
     global camera
     
-    # Check if we're in a deployment environment (no camera access)
-    if os.environ.get('RENDER'):
-        # Return a static frame indicating camera not available in deployment
-        static_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        cv2.putText(static_frame, 'Camera not available in deployment', 
-                   (50, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-        ret, buffer = cv2.imencode('.jpg', static_frame)
-        if ret:
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-        return
-    
     if camera is None:
         try:
             camera = cv2.VideoCapture(0)
             camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
             camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        except:
+        except Exception as e:
             # If camera initialization fails, return error frame
             error_frame = np.zeros((480, 640, 3), dtype=np.uint8)
             cv2.putText(error_frame, 'Camera not available', 
@@ -294,7 +282,8 @@ def generate_camera_frames():
             # Yield frame as bytes
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-        except:
+        except Exception as e:
+            print(f"Camera streaming error: {e}")
             break
 
 @app.route('/')
@@ -340,6 +329,53 @@ def upload_file():
     
     return jsonify({'error': 'Invalid file type'}), 400
 
+@app.route('/upload_base64', methods=['POST'])
+def upload_base64():
+    """Handle base64 image uploads from WebRTC camera"""
+    try:
+        data = request.get_json()
+        if not data or 'image' not in data:
+            return jsonify({'error': 'No image data provided'}), 400
+        
+        # Load model if not loaded
+        if not load_age_model():
+            return jsonify({'error': 'Failed to load model'}), 500
+        
+        # Decode base64 image
+        image_data = data['image']
+        if image_data.startswith('data:image'):
+            # Remove data URL prefix
+            image_data = image_data.split(',')[1]
+        
+        # Decode and save image
+        import uuid
+        filename = f"webcam_{uuid.uuid4().hex[:8]}.jpg"
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        with open(filepath, 'wb') as f:
+            f.write(base64.b64decode(image_data))
+        
+        # Predict age
+        results, result_filename = predict_age(filepath)
+        
+        if results is None:
+            return jsonify({'error': result_filename}), 400
+        
+        # Convert result image to base64 for display
+        result_path = os.path.join(app.config['RESULT_FOLDER'], result_filename)
+        with open(result_path, 'rb') as img_file:
+            img_data = base64.b64encode(img_file.read()).decode('utf-8')
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'result_image': img_data,
+            'result_filename': result_filename
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Processing failed: {str(e)}'}), 500
+
 @app.route('/results/<filename>')
 def result_file(filename):
     return send_from_directory(app.config['RESULT_FOLDER'], filename)
@@ -362,10 +398,6 @@ def video_feed():
 def start_camera():
     """Start camera stream"""
     global camera
-    
-    # Check if we're in a deployment environment
-    if os.environ.get('RENDER'):
-        return jsonify({'status': 'error', 'message': 'Camera not available in deployment environment'})
     
     try:
         if camera is None:

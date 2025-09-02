@@ -6,14 +6,15 @@ This document contains all the settings and information needed to deploy the Age
 
 ### Basic Configuration
 - **Service Type**: Web Service
-- **Build Command**: `pip install -r requirements.txt`
-- **Start Command**: `gunicorn --bind 0.0.0.0:$PORT app:app --timeout 120 --worker-class sync --workers 1`
+- **Build Command**: `bash build.sh` (or `pip install --upgrade pip setuptools wheel && pip install -r requirements.txt`)
+- **Start Command**: `gunicorn --bind 0.0.0.0:$PORT app:app --timeout 300 --worker-class sync --workers 1 --max-requests 100 --preload`
 - **Root Directory**: Leave empty (use repository root)
 
 ### Environment Settings
 - **Branch**: main (or your default branch)
-- **Runtime**: Python 3.11.9 (specified in runtime.txt)
+- **Runtime**: Python 3.11.7 (specified in runtime.txt)
 - **Region**: Choose closest to your users
+- **Auto-Deploy**: Enable for automatic deployments
 
 ### Environment Variables
 The following environment variables will be automatically set by Render:
@@ -91,9 +92,23 @@ The application includes the following key files for Render deployment:
 - If model loading fails, the application will not start
 
 ### Camera Functionality
-- Camera features are automatically disabled in deployment environments
-- This is by design as Render servers don't have camera access
-- Local development still supports camera functionality
+- **Dual Camera Support**: Server camera (if available) + Browser camera (WebRTC)
+- **Smart Fallback**: Automatically tries server camera first, falls back to browser camera
+- **Real-time Analysis**: Capture and analyze images directly from camera feed
+- **Cross-platform**: Works on desktop and mobile browsers
+
+**How the camera system works:**
+1. **Server Camera**: Direct access to server's camera hardware (if available)
+2. **Browser Camera (WebRTC)**: Uses user's device camera via browser
+3. **Automatic Detection**: System automatically chooses the best available option
+4. **Age Analysis**: Capture any frame and get instant age detection results
+
+**Camera Features:**
+- Live video streaming
+- Capture images from live feed  
+- Instant age detection analysis
+- Download captured images
+- Graceful fallback between camera types
 
 ### File Storage
 - Uploaded images are stored temporarily in the `uploads/` directory

@@ -2,9 +2,21 @@
 
 ## Service Configuration
 **Service Type**: Web Service
-**Build Command**: `pip install -r requirements.txt`
+**Build Command**: `bash build.sh`
 **Start Command**: Leave empty (uses Procfile)
 **Root Directory**: Leave empty
+**Runtime**: Python 3.11.7
+
+## Alternative Build Command (if build.sh doesn't work):
+`pip install --upgrade pip setuptools wheel && pip install -r requirements.txt`
+
+## Key Features Enabled:
+✅ **Image Upload & Age Detection**: Fully functional
+✅ **Live Camera Support**: Both server camera + browser camera (WebRTC)
+✅ **Real-time Age Analysis**: Capture and analyze from live camera
+✅ **Dual Camera Fallback**: Smart detection of available camera options
+✅ **Mobile & Desktop Support**: Works across all devices
+✅ **Instant Results**: Age detection with confidence scores
 
 ## Key Files Created/Modified:
 ✅ `Procfile` - Updated with proper gunicorn configuration
