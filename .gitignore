@@ -1,58 +1,78 @@
-Virtual environment
-venv/
-env/
-
-Byte-compiled / optimized / DLL files
-pycache/
+# Python
+__pycache__/
 *.py[cod]
-
-Distribution / packaging
+*$py.class
+*.so
 .Python
 build/
 develop-eggs/
 dist/
+downloads/
 eggs/
+.eggs/
+lib/
+lib64/
+parts/
 sdist/
 var/
+wheels/
 *.egg-info/
 .installed.cfg
-*.whl
 *.egg
+MANIFEST
 
-Flask-specific files
-instance/
-.flaskenv
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
 
-Database files
-*.db
-*.sqlite
-/database.sqlite
-/app.db
-
-Uploaded files
-/uploads/
-/static/uploads/
-
-Unit test / coverage reports
-.coverage
-.tox/
-.pytest_cache/
-htmlcov/
-
-Type checking
-.mypy_cache/
-.dmypy.json
-typed_ast/
-
-My project-specific files
-If you have specific files you want to ignore, add them here.
-For example:
-my_config.py
-my_secrets.json
-Editor/IDE files
-.idea/
+# IDE
 .vscode/
+.idea/
 *.swp
+*.swo
 *~
+
+# OS
 .DS_Store
-.history
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Flask
+instance/
+.webassets-cache
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Model files (optional - uncomment if you don't want to track large model files)
+# *.h5
+# *.hdf5
+# *.pkl
+# *.pickle
+
+# Uploaded files (optional - uncomment if you don't want to track uploaded images)
+# uploads/*
+# !uploads/.gitkeep
+
+# Results (optional - uncomment if you don't want to track result images)
+# results/*
+# !results/.gitkeep

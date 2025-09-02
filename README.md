@@ -165,6 +165,60 @@ Age Detection SSR-NET/
 - **NumPy**: Numerical computing
 - **Pillow**: Image handling
 
+## Deployment on Render
+
+This project is ready for deployment on Render.com. Follow these steps:
+
+### Prerequisites
+- A Render.com account
+- Your project code in a Git repository (GitHub, GitLab, or Bitbucket)
+
+### Deployment Steps
+
+1. **Connect your repository to Render:**
+   - Go to [Render Dashboard](https://dashboard.render.com)
+   - Click "New +" and select "Web Service"
+   - Connect your Git repository
+
+2. **Configure the deployment:**
+   - **Name**: Choose a name for your service
+   - **Root Directory**: Leave empty (uses project root)
+   - **Runtime**: Python 3.9.18 (specified in runtime.txt)
+   - **Build Command**: `chmod +x build.sh && ./build.sh`
+   - **Start Command**: `gunicorn app:app --bind 0.0.0.0:$PORT`
+
+3. **Environment Variables (Optional):**
+   - No additional environment variables are required for basic functionality
+
+4. **Deploy:**
+   - Click "Create Web Service"
+   - Render will automatically build and deploy your application
+
+### Render Configuration Summary
+
+- **Start Command**: `gunicorn app:app --bind 0.0.0.0:$PORT`
+- **Build Command**: `chmod +x build.sh && ./build.sh`
+- **Root Directory**: (leave empty)
+- **Python Version**: 3.9.18 (automatically detected from runtime.txt)
+
+### Important Notes for Render Deployment
+
+1. **Model Files**: Ensure all pre-trained model files are included in your repository
+2. **File Size**: Model files can be large. Consider using Git LFS for large files
+3. **Memory**: Render's free tier has limited memory. Consider upgrading for better performance
+4. **Camera Feature**: The live camera feature will not work on Render as it requires local camera access
+
+### Local Development vs Production
+
+- **Local**: Camera feature works, debug mode enabled
+- **Production (Render)**: Camera feature disabled, optimized for web deployment
+
+### Troubleshooting Deployment
+
+1. **Build Failures**: Check that all dependencies are in requirements.txt
+2. **Model Loading Issues**: Verify model files are present in pre-trained/ directories
+3. **Memory Issues**: Consider upgrading Render plan for larger models
+
 ## License
 
 This project uses the SSR-NET model for age estimation. Please refer to the original SSR-NET repository for model licensing information.
