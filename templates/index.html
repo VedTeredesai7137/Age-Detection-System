@@ -506,7 +506,7 @@
         Supported formats: JPG, PNG, GIF, BMP (Max 16MB)
       </div>
       <div class="camera-link">
-        <a href="/camera" class="btn">Live Camera Detection</a>
+        <a href="/webrtc_camera" class="btn">WebRTC Camera Capture</a>
       </div>
     </div>
     <div class="loading" id="loading">
@@ -566,7 +566,20 @@
         method: 'POST',
         body: formData
       })
-      .then(response => response.json())
+      .then(response => {
+        // Check if response is ok
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // Check if response is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          throw new Error('Response is not JSON');
+        }
+        
+        return response.json();
+      })
       .then(data => {
         document.getElementById('loading').style.display = 'none';
         if (data.success) {
@@ -585,13 +598,25 @@
           });
           document.getElementById('resultSection').style.display = 'block';
         } else {
-          showError(data.error);
+          showError(data.error || 'Unknown error occurred');
         }
       })
       .catch(error => {
         document.getElementById('loading').style.display = 'none';
-        showError('An error occurred while processing the image.');
-        console.error('Error:', error);
+        console.error('Upload error:', error);
+        
+        // Provide more specific error messages
+        if (error.message.includes('502')) {
+          showError('Server is temporarily unavailable. Please try again in a moment.');
+        } else if (error.message.includes('413')) {
+          showError('File is too large. Please choose a smaller image (max 16MB).');
+        } else if (error.message.includes('not JSON')) {
+          showError('Server returned an invalid response. Please try again.');
+        } else if (error.message.includes('Failed to fetch')) {
+          showError('Network error. Please check your connection and try again.');
+        } else {
+          showError('An error occurred while processing the image. Please try again.');
+        }
       });
     }
     function showError(message) {

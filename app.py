@@ -50,6 +50,21 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['RESULT_FOLDER'] = 'results'
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching for development
+
+# Add error handlers
+@app.errorhandler(413)
+def too_large(e):
+    return jsonify({'error': 'File too large. Maximum size is 16MB.'}), 413
+
+@app.errorhandler(500)
+def internal_error(e):
+    logger.error(f"Internal server error: {e}")
+    return jsonify({'error': 'Internal server error. Please try again.'}), 500
+
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({'error': 'Endpoint not found'}), 404
 
 # Create directories if they don't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -386,46 +401,50 @@ def generate_camera_frames():
     """Generate camera frames for streaming"""
     global camera
     
-    if camera is None:
-        try:
-            camera = cv2.VideoCapture(0)
-            camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        except Exception as e:
-            # If camera initialization fails, return error frame
-            error_frame = np.zeros((480, 640, 3), dtype=np.uint8)
-            cv2.putText(error_frame, 'Camera not available', 
-                       (150, 240), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-            ret, buffer = cv2.imencode('.jpg', error_frame)
-            if ret:
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-            return
+    # For web deployment, camera won't be available
+    # Return a placeholder frame with instructions
+    logger.info("Camera streaming requested - returning placeholder frame")
+    
+    # Create a placeholder frame
+    placeholder_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+    cv2.putText(placeholder_frame, 'Camera not available in web deployment', 
+               (50, 200), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+    cv2.putText(placeholder_frame, 'Please use image upload instead', 
+               (100, 250), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+    cv2.putText(placeholder_frame, 'or use WebRTC camera capture', 
+               (120, 300), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
     
     while True:
         try:
-            success, frame = camera.read()
-            if not success:
-                break
-            
-            # Process frame for age and gender detection
-            processed_frame = process_camera_frame(frame)
-            
-            # Convert frame to JPEG
-            ret, buffer = cv2.imencode('.jpg', processed_frame)
-            if not ret:
-                continue
-            
-            # Yield frame as bytes
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            ret, buffer = cv2.imencode('.jpg', placeholder_frame)
+            if ret:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            time.sleep(1)  # Update every second
         except Exception as e:
-            print(f"Camera streaming error: {e}")
+            logger.error(f"Camera streaming error: {e}")
             break
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/health')
+def health_check():
+    """Health check endpoint for monitoring"""
+    try:
+        return jsonify({
+            'status': 'healthy',
+            'message': 'Age Detection SSR-NET is running',
+            'models_loaded': model is not None and model_gender is not None,
+            'detector_loaded': detector is not None
+        })
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e)
+        }), 500
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -500,15 +519,21 @@ def upload_file():
 def upload_base64():
     """Handle base64 image uploads from WebRTC camera"""
     try:
+        logger.info("Received base64 image upload request")
+        
         data = request.get_json()
         if not data or 'image' not in data:
+            logger.error("No image data provided in base64 upload")
             return jsonify({'error': 'No image data provided'}), 400
         
         # Load model if not loaded
+        logger.info("Checking if models are loaded for base64 upload...")
         if not load_age_model():
+            logger.error("Failed to load models for base64 upload")
             return jsonify({'error': 'Failed to load model'}), 500
         
         # Decode base64 image
+        logger.info("Decoding base64 image...")
         image_data = data['image']
         if image_data.startswith('data:image'):
             # Remove data URL prefix
@@ -519,19 +544,32 @@ def upload_base64():
         filename = f"webcam_{uuid.uuid4().hex[:8]}.jpg"
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         
-        with open(filepath, 'wb') as f:
-            f.write(base64.b64decode(image_data))
+        try:
+            with open(filepath, 'wb') as f:
+                f.write(base64.b64decode(image_data))
+            logger.info(f"Base64 image saved to: {filepath}")
+        except Exception as e:
+            logger.error(f"Failed to save base64 image: {e}")
+            return jsonify({'error': f'Failed to save image: {str(e)}'}), 500
         
         # Predict age
+        logger.info("Starting age prediction for base64 image...")
         results, result_filename = predict_age(filepath)
         
         if results is None:
+            logger.error(f"Age prediction failed for base64 image: {result_filename}")
             return jsonify({'error': result_filename}), 400
         
         # Convert result image to base64 for display
-        result_path = os.path.join(app.config['RESULT_FOLDER'], result_filename)
-        with open(result_path, 'rb') as img_file:
-            img_data = base64.b64encode(img_file.read()).decode('utf-8')
+        logger.info("Converting result image to base64...")
+        try:
+            result_path = os.path.join(app.config['RESULT_FOLDER'], result_filename)
+            with open(result_path, 'rb') as img_file:
+                img_data = base64.b64encode(img_file.read()).decode('utf-8')
+            logger.info("Base64 upload and prediction completed successfully")
+        except Exception as e:
+            logger.error(f"Failed to convert result image to base64: {e}")
+            return jsonify({'error': f'Failed to process result image: {str(e)}'}), 500
         
         return jsonify({
             'success': True,
@@ -541,6 +579,8 @@ def upload_base64():
         })
         
     except Exception as e:
+        logger.error(f"Unexpected error in upload_base64: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return jsonify({'error': f'Processing failed: {str(e)}'}), 500
 
 @app.route('/results/<filename>')
@@ -555,6 +595,10 @@ def uploaded_file(filename):
 def camera_page():
     return render_template('camera.html')
 
+@app.route('/webrtc_camera')
+def webrtc_camera_page():
+    return render_template('webrtc_camera.html')
+
 @app.route('/video_feed')
 def video_feed():
     """Video streaming route"""
@@ -567,22 +611,31 @@ def start_camera():
     global camera
     
     try:
-        if camera is None:
-            camera = cv2.VideoCapture(0)
-            camera.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            camera.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        return jsonify({'status': 'success', 'message': 'Camera started'})
+        logger.info("Camera start requested")
+        # For web deployment, camera won't be available
+        # Return success but with a note about limitations
+        return jsonify({
+            'status': 'success', 
+            'message': 'Camera stream started (placeholder mode for web deployment)',
+            'note': 'Live camera not available in web deployment. Use image upload or WebRTC capture.'
+        })
     except Exception as e:
+        logger.error(f"Camera start error: {e}")
         return jsonify({'status': 'error', 'message': f'Failed to start camera: {str(e)}'})
 
 @app.route('/stop_camera')
 def stop_camera():
     """Stop camera stream"""
     global camera
-    if camera is not None:
-        camera.release()
-        camera = None
-    return jsonify({'status': 'success', 'message': 'Camera stopped'})
+    try:
+        logger.info("Camera stop requested")
+        if camera is not None:
+            camera.release()
+            camera = None
+        return jsonify({'status': 'success', 'message': 'Camera stopped'})
+    except Exception as e:
+        logger.error(f"Camera stop error: {e}")
+        return jsonify({'status': 'error', 'message': f'Failed to stop camera: {str(e)}'})
 
 if __name__ == '__main__':
     # Load models on startup
