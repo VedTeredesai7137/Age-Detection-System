@@ -1,6 +1,12 @@
 import logging
 import sys
+import os
 import numpy as np
+
+# Force CPU-only mode for TensorFlow (required for Render deployment)
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reduce TensorFlow logging
+
 from keras.models import Model
 from keras.layers import Input, Activation, add, Dense, Flatten, Dropout, Multiply, Embedding, Lambda, Add, Concatenate, Activation
 from keras.layers import Conv2D, AveragePooling2D, MaxPooling2D, BatchNormalization
@@ -10,6 +16,15 @@ from keras.optimizers import SGD, Adam
 # from keras.utils import plot_model  # Not used, removed to avoid compatibility issues
 from keras.layers import Layer
 from keras import activations, initializers, regularizers, constraints
+
+# Configure TensorFlow for CPU-only
+try:
+    import tensorflow as tf
+    tf.config.set_visible_devices([], 'GPU')
+    tf.config.threading.set_inter_op_parallelism_threads(1)
+    tf.config.threading.set_intra_op_parallelism_threads(1)
+except:
+    pass
 
 sys.setrecursionlimit(2 ** 20)
 np.random.seed(2 ** 10)

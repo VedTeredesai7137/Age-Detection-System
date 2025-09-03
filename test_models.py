@@ -8,6 +8,10 @@ import os
 import sys
 import logging
 
+# Force CPU-only mode for TensorFlow (required for Render deployment)
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reduce TensorFlow logging
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -35,7 +39,11 @@ def test_imports():
     
     try:
         import tensorflow as tf
-        logger.info(f"✓ TensorFlow imported successfully (version: {tf.__version__})")
+        # Configure TensorFlow to use CPU only
+        tf.config.set_visible_devices([], 'GPU')
+        tf.config.threading.set_inter_op_parallelism_threads(1)
+        tf.config.threading.set_intra_op_parallelism_threads(1)
+        logger.info(f"✓ TensorFlow imported successfully (version: {tf.__version__}) - CPU-only mode")
     except Exception as e:
         logger.error(f"✗ Failed to import TensorFlow: {e}")
         return False

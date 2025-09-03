@@ -207,6 +207,8 @@ This project is ready for deployment on Render.com. Follow these steps:
 2. **File Size**: Model files can be large. Consider using Git LFS for large files
 3. **Memory**: Render's free tier has limited memory. Consider upgrading for better performance
 4. **Camera Feature**: The live camera feature will not work on Render as it requires local camera access
+5. **CPU-Only Mode**: The application is configured to run in CPU-only mode for Render compatibility
+6. **Performance**: CPU-only mode is slower than GPU but works reliably on cloud platforms
 
 ### Local Development vs Production
 

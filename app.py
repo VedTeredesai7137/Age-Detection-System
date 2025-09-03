@@ -13,6 +13,10 @@ import logging
 import traceback
 import sys
 
+# Force CPU-only mode for TensorFlow (required for Render deployment)
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Reduce TensorFlow logging
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -22,6 +26,17 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Import TensorFlow and configure for CPU-only
+try:
+    import tensorflow as tf
+    # Configure TensorFlow to use CPU only
+    tf.config.set_visible_devices([], 'GPU')
+    tf.config.threading.set_inter_op_parallelism_threads(1)
+    tf.config.threading.set_intra_op_parallelism_threads(1)
+    logger.info(f"TensorFlow configured for CPU-only mode (version: {tf.__version__})")
+except Exception as e:
+    logger.warning(f"Could not configure TensorFlow: {e}")
 
 # Import SSR-Net model
 try:
