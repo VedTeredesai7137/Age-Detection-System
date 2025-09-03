@@ -9,9 +9,27 @@ import base64
 from PIL import Image
 import io
 import timeit
+import logging
+import traceback
+import sys
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Import SSR-Net model
-from demo.SSRNET_model import SSR_net, SSR_net_general
+try:
+    from demo.SSRNET_model import SSR_net, SSR_net_general
+    logger.info("Successfully imported SSR-NET models")
+except Exception as e:
+    logger.error(f"Failed to import SSR-NET models: {e}")
+    sys.exit(1)
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -39,61 +57,99 @@ def load_age_model():
     """Load the SSR-Net age estimation model"""
     global model, model_gender, detector, face_cascade
     
-    if model is None:
-        print("[INFO] Loading SSR-Net age model...")
-        
-        try:
-            # Build model architecture
-            model = SSR_net(64, [3, 3, 3], 1.0, 1.0)()
-        except Exception as e:
-            print(f"[ERROR] Failed to create age model: {e}")
-            return False
-        
-        # Find and load weights
-        weights_path = find_weights_file()
-        if weights_path:
+    try:
+        if model is None:
+            logger.info("Loading SSR-Net age model...")
+            
             try:
-                model.load_weights(weights_path)
-                print(f"[INFO] Age model loaded successfully from {weights_path}")
+                # Build model architecture
+                logger.info("Building age model architecture...")
+                model = SSR_net(64, [3, 3, 3], 1.0, 1.0)()
+                logger.info("Age model architecture built successfully")
             except Exception as e:
-                print(f"[ERROR] Failed to load age weights: {e}")
+                logger.error(f"Failed to create age model: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
                 return False
-        else:
-            print("[ERROR] No age weights file found")
-            return False
-    
-    if model_gender is None:
-        print("[INFO] Loading SSR-Net gender model...")
+            
+            # Find and load weights
+            logger.info("Searching for age model weights...")
+            weights_path = find_weights_file()
+            if weights_path:
+                try:
+                    logger.info(f"Loading age weights from: {weights_path}")
+                    model.load_weights(weights_path)
+                    logger.info("Age model loaded successfully")
+                except Exception as e:
+                    logger.error(f"Failed to load age weights: {e}")
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    return False
+            else:
+                logger.error("No age weights file found")
+                return False
         
-        try:
-            # Build gender model architecture
-            model_gender = SSR_net_general(64, [3, 3, 3], 1.0, 1.0)()
-        except Exception as e:
-            print(f"[ERROR] Failed to create gender model: {e}")
-            return False
-        
-        # Find and load gender weights
-        gender_weights_path = find_gender_weights_file()
-        if gender_weights_path:
+        if model_gender is None:
+            logger.info("Loading SSR-Net gender model...")
+            
             try:
-                model_gender.load_weights(gender_weights_path)
-                print(f"[INFO] Gender model loaded successfully from {gender_weights_path}")
+                # Build gender model architecture
+                logger.info("Building gender model architecture...")
+                model_gender = SSR_net_general(64, [3, 3, 3], 1.0, 1.0)()
+                logger.info("Gender model architecture built successfully")
             except Exception as e:
-                print(f"[ERROR] Failed to load gender weights: {e}")
+                logger.error(f"Failed to create gender model: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
                 return False
-        else:
-            print("[ERROR] No gender weights file found")
-            return False
-    
-    if detector is None:
-        print("[INFO] Loading MTCNN face detector...")
-        detector = MTCNN()
-    
-    if face_cascade is None:
-        print("[INFO] Loading LBP face cascade...")
-        face_cascade = cv2.CascadeClassifier('demo/lbpcascade_frontalface_improved.xml')
-    
-    return True
+            
+            # Find and load gender weights
+            logger.info("Searching for gender model weights...")
+            gender_weights_path = find_gender_weights_file()
+            if gender_weights_path:
+                try:
+                    logger.info(f"Loading gender weights from: {gender_weights_path}")
+                    model_gender.load_weights(gender_weights_path)
+                    logger.info("Gender model loaded successfully")
+                except Exception as e:
+                    logger.error(f"Failed to load gender weights: {e}")
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    return False
+            else:
+                logger.error("No gender weights file found")
+                return False
+        
+        if detector is None:
+            logger.info("Loading MTCNN face detector...")
+            try:
+                detector = MTCNN()
+                logger.info("MTCNN detector loaded successfully")
+            except Exception as e:
+                logger.error(f"Failed to load MTCNN detector: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                return False
+        
+        if face_cascade is None:
+            logger.info("Loading LBP face cascade...")
+            try:
+                cascade_path = 'demo/lbpcascade_frontalface_improved.xml'
+                if not os.path.exists(cascade_path):
+                    logger.error(f"LBP cascade file not found: {cascade_path}")
+                    return False
+                face_cascade = cv2.CascadeClassifier(cascade_path)
+                if face_cascade.empty():
+                    logger.error("Failed to load LBP cascade classifier")
+                    return False
+                logger.info("LBP face cascade loaded successfully")
+            except Exception as e:
+                logger.error(f"Failed to load LBP face cascade: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                return False
+        
+        logger.info("All models loaded successfully!")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Unexpected error in load_age_model: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return False
 
 def find_weights_file():
     """Find the appropriate weights file in pre-trained folders"""
@@ -135,55 +191,113 @@ def find_gender_weights_file():
 def predict_age(image_path):
     """Predict age from an image file"""
     try:
+        logger.info(f"Starting age prediction for image: {image_path}")
+        
+        # Check if image file exists
+        if not os.path.exists(image_path):
+            logger.error(f"Image file not found: {image_path}")
+            return None, "Image file not found"
+        
         # Load image
+        logger.info("Loading image...")
         img = cv2.imread(image_path)
         if img is None:
+            logger.error("Failed to load image with OpenCV")
             return None, "Failed to load image"
         
+        logger.info(f"Image loaded successfully. Shape: {img.shape}")
+        
+        # Check if models are loaded
+        if model is None or detector is None:
+            logger.error("Models not loaded")
+            return None, "Models not loaded"
+        
         # Detect faces
-        faces = detector.detect_faces(img)
+        logger.info("Detecting faces...")
+        try:
+            faces = detector.detect_faces(img)
+            logger.info(f"Found {len(faces)} faces")
+        except Exception as e:
+            logger.error(f"Face detection failed: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return None, f"Face detection failed: {str(e)}"
+        
         if len(faces) == 0:
+            logger.warning("No faces detected in the image")
             return None, "No face detected in the image"
         
         results = []
         
         for i, face in enumerate(faces):
-            x, y, w, h = face["box"]
-            x, y = max(0, x), max(0, y)
-            
-            # Extract face region
-            face_img = img[y:y+h, x:x+w]
-            
-            # Preprocess face
-            face_resized = cv2.resize(face_img, (64, 64))
-            face_normalized = face_resized.astype("float32") / 255.0
-            face_input = np.expand_dims(face_normalized, axis=0)
-            
-            # Predict age
-            pred = model.predict(face_input, verbose=0)
-            age = pred[0][0]
-            
-            # Draw rectangle and text on image
-            cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
-            cv2.putText(img, f"Age: {int(age)}", (x, y-10),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-            
-            results.append({
-                'face_id': i + 1,
-                'age': int(age),
-                'confidence': face['confidence'],
-                'bbox': [x, y, w, h]
-            })
+            try:
+                logger.info(f"Processing face {i+1}/{len(faces)}")
+                
+                x, y, w, h = face["box"]
+                x, y = max(0, x), max(0, y)
+                
+                # Extract face region
+                face_img = img[y:y+h, x:x+w]
+                if face_img.size == 0:
+                    logger.warning(f"Empty face region for face {i+1}")
+                    continue
+                
+                # Preprocess face
+                logger.info(f"Preprocessing face {i+1}...")
+                face_resized = cv2.resize(face_img, (64, 64))
+                face_normalized = face_resized.astype("float32") / 255.0
+                face_input = np.expand_dims(face_normalized, axis=0)
+                
+                # Predict age
+                logger.info(f"Predicting age for face {i+1}...")
+                try:
+                    pred = model.predict(face_input, verbose=0)
+                    age = pred[0][0]
+                    logger.info(f"Predicted age for face {i+1}: {int(age)}")
+                except Exception as e:
+                    logger.error(f"Age prediction failed for face {i+1}: {e}")
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+                    continue
+                
+                # Draw rectangle and text on image
+                cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                cv2.putText(img, f"Age: {int(age)}", (x, y-10),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+                
+                results.append({
+                    'face_id': i + 1,
+                    'age': int(age),
+                    'confidence': face['confidence'],
+                    'bbox': [x, y, w, h]
+                })
+                
+            except Exception as e:
+                logger.error(f"Error processing face {i+1}: {e}")
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                continue
+        
+        if not results:
+            logger.error("No faces were successfully processed")
+            return None, "Failed to process any faces"
         
         # Save result image
+        logger.info("Saving result image...")
         result_filename = f"result_{os.path.basename(image_path)}"
         result_path = os.path.join(app.config['RESULT_FOLDER'], result_filename)
-        cv2.imwrite(result_path, img)
         
+        try:
+            cv2.imwrite(result_path, img)
+            logger.info(f"Result image saved: {result_path}")
+        except Exception as e:
+            logger.error(f"Failed to save result image: {e}")
+            return None, f"Failed to save result image: {str(e)}"
+        
+        logger.info(f"Age prediction completed successfully. Processed {len(results)} faces")
         return results, result_filename
         
     except Exception as e:
-        return None, str(e)
+        logger.error(f"Unexpected error in predict_age: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return None, f"Prediction failed: {str(e)}"
 
 def draw_label(image, point, label, font=cv2.FONT_HERSHEY_SIMPLEX,
                font_scale=1, thickness=2):
@@ -300,42 +414,72 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file part'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-    
-    if file and allowed_file(file.filename):
-        # Load model if not loaded
-        if not load_age_model():
-            return jsonify({'error': 'Failed to load model'}), 500
+    try:
+        logger.info("Received upload request")
         
-        # Save uploaded file
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
+        if 'file' not in request.files:
+            logger.error("No file part in request")
+            return jsonify({'error': 'No file part'}), 400
         
-        # Predict age
-        results, result_filename = predict_age(filepath)
+        file = request.files['file']
+        if file.filename == '':
+            logger.error("No file selected")
+            return jsonify({'error': 'No selected file'}), 400
         
-        if results is None:
-            return jsonify({'error': result_filename}), 400
+        logger.info(f"Processing file: {file.filename}")
         
-        # Convert result image to base64 for display
-        result_path = os.path.join(app.config['RESULT_FOLDER'], result_filename)
-        with open(result_path, 'rb') as img_file:
-            img_data = base64.b64encode(img_file.read()).decode('utf-8')
+        if file and allowed_file(file.filename):
+            # Load model if not loaded
+            logger.info("Checking if models are loaded...")
+            if not load_age_model():
+                logger.error("Failed to load models")
+                return jsonify({'error': 'Failed to load model'}), 500
+            
+            # Save uploaded file
+            logger.info("Saving uploaded file...")
+            try:
+                filename = secure_filename(file.filename)
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(filepath)
+                logger.info(f"File saved to: {filepath}")
+            except Exception as e:
+                logger.error(f"Failed to save file: {e}")
+                return jsonify({'error': f'Failed to save file: {str(e)}'}), 500
+            
+            # Predict age
+            logger.info("Starting age prediction...")
+            results, result_filename = predict_age(filepath)
+            
+            if results is None:
+                logger.error(f"Age prediction failed: {result_filename}")
+                return jsonify({'error': result_filename}), 400
+            
+            # Convert result image to base64 for display
+            logger.info("Converting result image to base64...")
+            try:
+                result_path = os.path.join(app.config['RESULT_FOLDER'], result_filename)
+                with open(result_path, 'rb') as img_file:
+                    img_data = base64.b64encode(img_file.read()).decode('utf-8')
+                logger.info("Result image converted to base64 successfully")
+            except Exception as e:
+                logger.error(f"Failed to convert result image: {e}")
+                return jsonify({'error': f'Failed to process result image: {str(e)}'}), 500
+            
+            logger.info("Upload and prediction completed successfully")
+            return jsonify({
+                'success': True,
+                'results': results,
+                'result_image': img_data,
+                'result_filename': result_filename
+            })
         
-        return jsonify({
-            'success': True,
-            'results': results,
-            'result_image': img_data,
-            'result_filename': result_filename
-        })
-    
-    return jsonify({'error': 'Invalid file type'}), 400
+        logger.error(f"Invalid file type: {file.filename}")
+        return jsonify({'error': 'Invalid file type'}), 400
+        
+    except Exception as e:
+        logger.error(f"Unexpected error in upload_file: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
 @app.route('/upload_base64', methods=['POST'])
 def upload_base64():
@@ -427,14 +571,25 @@ def stop_camera():
 
 if __name__ == '__main__':
     # Load models on startup
-    print("[INFO] Loading models on startup...")
+    logger.info("=" * 50)
+    logger.info("Starting Age Detection SSR-NET Application")
+    logger.info("=" * 50)
+    
+    logger.info("Loading models on startup...")
     if load_age_model():
-        print("[INFO] Models loaded successfully!")
-        print("[INFO] Starting Flask server...")
+        logger.info("Models loaded successfully!")
+        logger.info("Starting Flask server...")
+        
         # Use environment variable PORT for deployment (Render provides this)
         port = int(os.environ.get('PORT', 5000))
+        logger.info(f"Server will start on port: {port}")
+        logger.info("Application is ready to serve requests!")
+        logger.info("=" * 50)
+        
         app.run(debug=False, host='0.0.0.0', port=port)
     else:
-        print("[ERROR] Failed to load models. Exiting...")
+        logger.error("Failed to load models. Exiting...")
+        logger.error("=" * 50)
+        sys.exit(1)
 
 
